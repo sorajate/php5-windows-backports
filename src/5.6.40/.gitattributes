@@ -1,0 +1,5 @@
+# Preserve the adopted release bytes; do not expand ident markers.
+* -text -ident
+readme.md text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf

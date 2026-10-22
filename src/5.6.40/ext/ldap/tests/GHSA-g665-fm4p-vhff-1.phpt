@@ -1,0 +1,29 @@
+--TEST--
+GHSA-g665-fm4p-vhff (OOB access in ldap_escape)
+--EXTENSIONS--
+ldap
+--INI--
+memory_limit=-1
+--SKIPIF--
+<?php
+if (PHP_INT_SIZE !== 4) die("skip only for 32-bit");
+if (getenv("SKIP_SLOW_TESTS")) die("skip slow test");
+if (getenv("PHP_BACKPORT_LARGE_TESTS") !== "1") die("skip requires an explicit multi-gigabyte memory test environment");
+?>
+--FILE--
+<?php
+try {
+    ldap_escape(' '.str_repeat("#", 1431655758), "", LDAP_ESCAPE_DN);
+} catch (Exception $e) {
+    echo $e->getMessage(), "\n";
+}
+
+try {
+    ldap_escape(str_repeat("#", 1431655758).' ', "", LDAP_ESCAPE_DN);
+} catch (Exception $e) {
+    echo $e->getMessage(), "\n";
+}
+?>
+--EXPECT--
+Argument #1 ($value) is too long
+Argument #1 ($value) is too long

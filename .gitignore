@@ -1,0 +1,59 @@
+# Private research and local agent planning
+/intel/
+/AGENTS.md
+/ROADMAP.md
+/baselines/
+/patches/
+/docs/
+/tools/
+/tests/
+/description.txt
+
+# Generated build outputs and downloaded source archives
+/build/
+/dist/
+/downloads/
+/download/
+/releases/
+/sources/
+/tmp/
+/temp/
+/cache/
+/artifacts/
+
+# Local editor and environment files
+/.vs/
+/.idea/
+/.vscode/
+.env
+.env.*
+!.env.example
+
+# Temporary files
+__pycache__/
+*.py[cod]
+*.tmp
+*.bak
+Thumbs.db
+Desktop.ini
+
+# Downloaded archives and compiled outputs belong in local work directories.
+*.zip
+*.tar
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tgz
+*.7z
+*.exe
+*.dll
+*.pdb
+*.obj
+*.lib
+
+# Versioned upstream source includes intentional archive and binary test fixtures.
+# Each source tree has its own narrower rules for generated build outputs.
+!src/**
+
+# Private handoff notes, including notes under versioned source trees.
+HANDOFF*

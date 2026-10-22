@@ -1,0 +1,22 @@
+[ req ]
+default_bits = 2048
+default_md = sha256
+distinguished_name = backport_dn
+
+[ backport_dn ]
+commonName = Common Name
+commonName_max = 64
+
+[ backport_none ]
+basicConstraints = CA:FALSE
+keyUsage = digitalSignature,keyEncipherment
+
+[ backport_dns ]
+basicConstraints = CA:FALSE
+keyUsage = digitalSignature,keyEncipherment
+subjectAltName = DNS:san-only.test
+
+[ backport_ip ]
+basicConstraints = CA:FALSE
+keyUsage = digitalSignature,keyEncipherment
+subjectAltName = IP:127.0.0.1
