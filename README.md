@@ -9,7 +9,7 @@ src/
 
 | Source | Included work | Validation |
 | --- | --- | --- |
-| [PHP 5.6.40](src/5.6.40/readme.md) | Base1 mitigation for CVE-2026-109618 and CVE-2026-109619, security backports (Phar TAR CVE-2026-6103/7260, SOAP GHSA-hmxp-6pc4-f3vv/GHSA-m33r-qmcv-p97q, Windows device paths CVE-2026-17545, mysqlnd, HTTP, TLS, filters, OpenSSL, image, URL, review hardening) | Built and tested on Windows x86: TS and NTS each pass the focused suite and all changed PHPTs (see the version readme for results and limits) |
+| [PHP 5.6.40](src/5.6.40/readme.md) | Base1 mitigation for CVE-2026-109618 and CVE-2026-109619, security backports (Phar TAR CVE-2026-6103/7260, SOAP GHSA-hmxp-6pc4-f3vv/GHSA-m33r-qmcv-p97q, Windows device paths CVE-2026-17545, mysqlnd, HTTP, TLS, filters, OpenSSL, image, URL, review hardening, multipart limit warning collapsing) | Built and tested on Windows x86: TS and NTS each pass the focused suite, all changed PHPTs, persistent FastCGI checks and real-DB compatibility (see the version readme for results and limits) |
 
 Clone the repository and work directly in the version directory. The patch is already applied.
 Each version's README records its changes, provenance, hashes, and validation limits.

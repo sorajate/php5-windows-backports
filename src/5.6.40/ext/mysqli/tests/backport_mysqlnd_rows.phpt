@@ -10,5 +10,5 @@ if (!function_exists('proc_open') || !function_exists('stream_socket_server')) d
 require __DIR__ . '/backport_mysqlnd_peer.inc';
 backport_mysqlnd_run('rows');
 ?>
---EXPECTF--
-rows: %d cases, 0 failures
+--EXPECT--
+rows: 184/184 cases, 0 failures

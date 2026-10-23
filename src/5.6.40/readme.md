@@ -5,7 +5,7 @@ Clone the monorepo and work directly in this directory; no separate download or 
 needed. One source tree builds both Windows x86 variants: TS (thread safe) and NTS (non thread
 safe). They are separate configure/build variants and are tested separately.
 
-- Project patch revision: `php5-windows-backports-5.6.40-r3`
+- Project patch revision: `php5-windows-backports-5.6.40-r4`
 - Target: Windows x86 (32-bit) only. PHP 7+, x64, and other platforms are out of scope.
 
 ## Provenance
@@ -25,11 +25,18 @@ The source is built up from two recorded patch layers on top of that archive:
    and [CVE-2026-109619 / GHSA-6wmf-4rv5-p3rp](https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp).
    Original attribution: Arnaud Le Blanc; co-authored by Ilija Tovilo. The combined patch also
    carries multipart body-part limits and VC11 supplements, and modifies 13 files.
-2. `r2` – the cumulative security backports and hardening set for this revision. It applies the
-   reviewed Sury PHP 5.6.40-104 donor series (104 source/test patches, `NEWS` hunks excluded;
-   captured archive SHA-256 `239d3fbf5b94d0e74a1b7f80874b38c62b756a28e6d69b2443f67500417d255b`)
-   together with the project patch groups below. It changes 196 source and test files relative to
-   the base1 tree.
+2. `r2`–`r4` – the cumulative security backports and hardening set for this revision
+   (patch SHA-256 `643a8ad1f5472fbbcd7a00a1f45357ac013c998bb40acce1af7e74f6b4c617d6`, 199
+   source and test files changed relative to the base1 tree). It applies the reviewed Sury
+   PHP 5.6.40-104 donor series (104 source/test patches, `NEWS` hunks excluded; captured archive
+   SHA-256 `239d3fbf5b94d0e74a1b7f80874b38c62b756a28e6d69b2443f67500417d255b`), selected logic
+   from Sury 5.6.40-105, and the project patch groups below.
+
+   Sury 5.6.40-105 comparison: the multipart body-part cap (`0263`) is already present through
+   the base1 supplement and is deliberately not re-applied; only the file-upload warning
+   collapsing logic (`0262`, upstream commit `e45850c195`) is ported as a project fix in `r4`.
+   The `NEWS` edit (`0264`) is replaced by this document. The `0261` change is a header comment
+   only. The whole Sury `-105` series is therefore **not** imported verbatim.
 
 Retain the PHP license and all original PHP, Zend, component, and patch attribution notices when
 distributing derived source. The upstream license copy is in `LICENSE`.
@@ -42,7 +49,11 @@ public identifier are recorded as review hardening for the components listed.
 - **Request lifecycle (base1)** – CVE-2026-109618, CVE-2026-109619: allocator OOM and guarded
   overflow paths terminate the worker before PHP callbacks; affected request globals are reset;
   core session upload progress is disabled even when its INI says On. Multipart body-part limits
-  count ignored parts and derive the default from input and upload limits.
+  count ignored parts and derive the default from input and upload limits; this is the multipart
+  part cap referenced by CVE-2023-0662 (see the multipart notes below for the verified scope).
+- **Multipart limits (r4)** – warning collapsing for the `max_file_uploads` overflow (Sury
+  `0262`, upstream `e45850c195`): three excess file parts produce one warning instead of one
+  warning per part. Normal upload behaviour is unchanged.
 - **Phar TAR** – CVE-2026-6103, CVE-2026-7260: numeric/size/type checks and cyclic or invalid
   link handling across read, seek, copy, conversion, and write callers. PHP 8 lazy Phar metadata
   behavior is deliberately not backported because it changes legacy API behavior.
@@ -83,7 +94,14 @@ public identifier are recorded as review hardening for the components listed.
 - OOM and guarded overflow paths terminate the process with `_exit(1)` before PHP callbacks.
   This is the adopted minimal EOL behavior, not the modern delayed-OOM design.
 - Core session upload progress is unavailable even when `session.upload_progress.enabled` is On.
-- Multipart parsing counts ignored MIME parts toward the body-part limit.
+- Multipart parsing counts ignored MIME parts toward the body-part limit. The limit comes from
+  `max_multipart_body_parts`; a value of `-1` derives the limit as `max_input_vars` +
+  `max_file_uploads` (1020 with the default 1000 + 20) and does not mean "unlimited". Parsing
+  stops at the first part over the limit with a single warning. The check happens after that
+  part's headers are read, so this bounds part counts, not every multipart denial-of-service
+  shape. This is the part cap behind CVE-2023-0662; the covered shapes are the ones in
+  `tests/basic/multipart_limits.phpt`.
+- Exceeding `max_file_uploads` now warns once per request instead of once per skipped file part.
 - Malformed mysqlnd protocol data (greeting, auth, OK, EOF, prepare, metadata, rows) is rejected
   with warnings before any codec or callback runs. A wrong fixed-metadata-block marker or
   trailing bytes after the last column in a row are treated as malformed. Applications that
@@ -162,7 +180,7 @@ The only variant difference is the thread-safety switch:
 Then run `nmake` (VC11, x86 tools). Keep both variants on separate output directories; they
 share this one source tree but are not interchangeable binaries.
 
-## Validation results (r3, 2026-10-22)
+## Validation results (r4, 2026-10-22)
 
 Both variants were built from this source with the toolchain above and tested separately on
 Windows x86. The x86 claim is runtime verified (`PHP_INT_SIZE === 4`).
@@ -175,10 +193,13 @@ GMP, Intl, OpenSSL and cURL controls passed.
 | --- | --- | --- |
 | ZTS flag | `PHP_ZTS=1` | `PHP_ZTS=0` |
 | Focused security/control suite (32 tests) | 31 PASS, 1 SKIP, 0 FAIL | 31 PASS, 1 SKIP, 0 FAIL |
-| All changed PHPTs (96 tests) | 81 PASS, 15 SKIP, 0 FAIL | 81 PASS, 15 SKIP, 0 FAIL |
-| mysqlnd loopback peer (metadata + rows) | 45 + 112 cases, 0 FAIL | 45 + 112 cases, 0 FAIL |
+| All changed PHPTs (98 tests) | 83 PASS, 15 SKIP, 0 FAIL | 83 PASS, 15 SKIP, 0 FAIL |
+| mysqlnd loopback peer (pinned case counts) | packets 201/201, metadata 45/45, rows 184/184, auth-long 14/14, 0 FAIL | same, 0 FAIL |
+| mysqlnd loopback peer, procedural `mysqli_connect()` (nonpersistent handle) | metadata 45/45, rows 184/184, 0 FAIL | same, 0 FAIL |
+| Multipart limits PHP test (CGI) | 5/5 cases, 0 FAIL | 5/5 cases, 0 FAIL |
 | Real MySQL 5.7.44 compatibility | 11/11 PASS | 11/11 PASS |
-| FastCGI persistent worker (9 checks) | 9 PASS, 0 FAIL | 9 PASS, 0 FAIL |
+| Real MariaDB 10.11.19 compatibility | 11/11 PASS | 11/11 PASS |
+| FastCGI persistent worker | 15 PASS, 0 FAIL | 15 PASS, 0 FAIL |
 
 The focused suite covers the patch groups above: SOAP security decoders, Phar TAR CVEs,
 mysqlnd packet/metadata/row/auth bounds, HTTP redirect credential handling, OpenSSL cipher
@@ -203,19 +224,36 @@ Skips are recorded as unavailable runtime paths, not as passes:
 - Remaining skips are tests marked by their SKIPIF as not applicable to Windows, requiring a
   live PostgreSQL server, or explicitly gated as slow tests.
 
+### Validation levels
+
+The claims above separate as follows:
+
+| Level | Status |
+| --- | --- |
+| source implemented | yes (patch groups in this document) |
+| built (x86 VC11 TS + NTS) | yes (this revision) |
+| tested: CGI one-process-per-request | yes (PHPT suite plus CGI multipart limits) |
+| tested: persistent FastCGI worker | yes (php-cgi.exe FastCGI mode, 15 checks per variant) |
+| tested: real database | yes (MySQL 5.7.44, MariaDB 10.11.19; mysqli/mysqlnd query paths) |
+| deployed (IIS / Apache / application) | no |
+
 ### Known limits
 
 - Focused regression tests only; the full upstream PHP test suite was not run.
 - Windows x86 only; no x64, ARM, or non-Windows results are claimed.
 - No IIS/Apache deployment or application workflow testing was performed. FastCGI persistent
-  worker behaviour was tested through php-cgi.exe in FastCGI mode (worker PID persistence,
-  sessions, multipart uploads, body-part limits, upload-progress suppression).
-- Real-server compatibility verified against MySQL 5.7.44 (buffered, unbuffered, prepared
-  statements, binary protocol rows, NULL/special values, round-trip). PHP 5.6 cannot connect
-  to MySQL 8.x out of the box because MySQL 8 sends charset 255 (utf8mb4_0900_ai_ci) in the
-  handshake which is unknown to PHP 5.6; this is a pre-existing limitation not introduced
-  by this patch. Configure MySQL 8 with a pre-8.0 default charset in my.cnf and restart to
-  use PHP 5.6.
+  worker behaviour was tested through php-cgi.exe in FastCGI mode: worker PID persistence,
+  sessions, multipart uploads, body-part limit enforcement (exact accepted parts and warning
+  counts), file-upload-limit warning collapsing, upload-progress suppression, oversized
+  boundary rejection, and a controlled worker exit followed by a fresh worker continuing the
+  session. The controlled exit terminates the worker process from the harness; it is not a
+  real allocator-OOM termination of the base1 `_exit(1)` path.
+- Real-server compatibility verified against MySQL 5.7.44 and MariaDB 10.11.19 (buffered,
+  unbuffered, prepared statements, binary protocol rows, NULL/special values, round-trip).
+  PHP 5.6 cannot connect to MySQL 8.x out of the box because MySQL 8 sends charset 255
+  (utf8mb4_0900_ai_ci) in the handshake which is unknown to PHP 5.6; this is a pre-existing
+  limitation not introduced by this patch. Configure MySQL 8 with a pre-8.0 default charset in
+  my.cnf and restart to use PHP 5.6.
 - External dependency versions are those listed; vulnerabilities inside those dependency
   versions are not claimed to be fixed by this source patch.
 - Only the patch groups above carry project verification. The applied donor series is recorded
@@ -228,5 +266,6 @@ Skips are recorded as unavailable runtime paths, not as passes:
 
 The adopted base1 tree carries its own earlier x86 TS / VC11 evidence (17/17 EOL CGI, 6/6
 persistent FastCGI, 11/11 extension checks, 9/9 session tests) recorded on 2026-10-22. Those
-results describe the base1 tree only. The r3 results above are the tests rerun against this
-revision.
+results describe the base1 tree only. The r4 results above are the tests rerun against this
+revision. A test and build attestation binding the source fingerprint, binary SHA-256 values,
+commands and raw results is kept in the private project evidence.

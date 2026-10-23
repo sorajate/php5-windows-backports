@@ -10,5 +10,5 @@ if (!function_exists('proc_open') || !function_exists('stream_socket_server')) d
 require __DIR__ . '/backport_mysqlnd_peer.inc';
 backport_mysqlnd_run('auth-long');
 ?>
---EXPECTF--
-auth-long: 14 cases, 0 failures
+--EXPECT--
+auth-long: 14/14 cases, 0 failures

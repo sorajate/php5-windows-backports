@@ -153,6 +153,14 @@ function backport_mysqlnd_cases($group) {
         $cases['binary-time-control'] = array('mode' => 'binary', 'type' => 11, 'payload' => "\0\0\x08\0" . pack('V', 0) . "\x0c\x22\x38", 'valid' => true, 'value' => '12:34:56');
         $cases['binary-datetime-control'] = array('mode' => 'binary', 'type' => 12, 'payload' => "\0\0\x07" . pack('v', 2026) . "\x0a\x16\x0c\x22\x38", 'valid' => true, 'value' => '2026-10-22 12:34:56');
         $cases['binary-bitmap-control'] = array('mode' => 'binary', 'types' => array_fill(0, 8, 253), 'payload' => "\0\0\1" . str_repeat("\1x", 6) . "\0", 'valid' => true, 'values' => array('x', 'x', 'x', 'x', 'x', 'x', null, ''));
+        /* Buffered prepared results take a separate decoder path
+         * (mysqli_stmt_store_result), so every binary case runs twice. */
+        foreach ($cases as $name => $case) {
+            if ($case['mode'] === 'binary' && empty($case['store'])) {
+                $case['store'] = true;
+                $cases[$name . '-store'] = $case;
+            }
+        }
     } elseif ($group === 'auth-long') {
         foreach (array(0, 255, 256, 4096, 31622, 31626, 65536) as $length) {
             $cases['auth-switch-password-' . $length] = array('mode' => 'auth-long', 'length' => $length, 'valid' => true);
@@ -249,9 +257,11 @@ function backport_mysqlnd_peer($case) {
 function backport_mysqlnd_run($group) {
     $cases = backport_mysqlnd_cases($group);
     $failures = 0;
+    $executed = 0;
     mysqli_report(MYSQLI_REPORT_OFF);
     foreach ($cases as $name => $case) {
         if (getenv('PHP_BACKPORT_MYSQLND_CASE') && getenv('PHP_BACKPORT_MYSQLND_CASE') !== $name) continue;
+        $executed++;
         if (getenv('PHP_BACKPORT_MYSQLND_TRACE')) echo 'CASE ', $name, "\n";
         $php = PHP_BINARY;
         $command = escapeshellarg($php) . ' -n ' . escapeshellarg(__FILE__) . ' --peer ' . escapeshellarg($group) . ' ' . escapeshellarg($name);
@@ -285,6 +295,10 @@ function backport_mysqlnd_run($group) {
                 $result = (bool) $statement;
                 if ($result && $case['mode'] === 'binary') {
                     $result = mysqli_stmt_execute($statement);
+                    if ($result && !empty($case['store'])) {
+                        /* Buffered prepared result path. */
+                        $result = mysqli_stmt_store_result($statement) === true;
+                    }
                     if (isset($case['types'])) {
                         $values = array_fill(0, count($case['types']), null);
                         $arguments = array($statement);
@@ -333,7 +347,9 @@ function backport_mysqlnd_run($group) {
             $failures++;
         }
     }
-    echo $group, ': ', count($cases), ' cases, ', $failures, " failures\n";
+    /* executed/total: proves how many cases actually ran even when the
+     * PHP_BACKPORT_MYSQLND_CASE debug filter is set. */
+    echo $group, ': ', $executed, '/', count($cases), ' cases, ', $failures, " failures\n";
 }
 
 if (isset($argv[1]) && $argv[1] === '--peer') {
