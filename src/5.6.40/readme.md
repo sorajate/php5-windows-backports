@@ -184,8 +184,10 @@ share this one source tree but are not interchangeable binaries.
 
 ## Validation results (r5, 2026-10-23)
 
-Both variants were built from this source with the toolchain above and tested separately on
-Windows x86. The x86 claim is runtime verified (`PHP_INT_SIZE === 4`).
+The Windows x86 TS and NTS runtime binaries were built from the r4 C source with the toolchain
+above. r5 changes tests and documentation only; it reuses those hash-identical binaries and
+reruns the affected PHPT and FastCGI checks separately on both variants. The x86 claim is
+runtime verified (`PHP_INT_SIZE === 4`).
 
 Common smoke check per variant: PHP 5.6.40 CLI, `PHP_INT_SIZE=4`, all configured modules
 loaded (Zend OPcache and the 26 shared DLLs listed above), PDO SQLite, SQLite3, GD, mbregex,
@@ -198,10 +200,10 @@ GMP, Intl, OpenSSL and cURL controls passed.
 | All changed PHPTs (98 tests) | 83 PASS, 15 SKIP, 0 FAIL | 83 PASS, 15 SKIP, 0 FAIL |
 | mysqlnd loopback peer (pinned case counts) | packets 201/201, metadata 45/45, rows 184/184, auth-long 14/14, 0 FAIL | same, 0 FAIL |
 | mysqlnd loopback peer, procedural `mysqli_connect()` (nonpersistent handle) | metadata 45/45, rows 184/184, 0 FAIL | same, 0 FAIL |
-| Multipart limits PHP test (CGI) | 5/5 cases, 0 FAIL | 5/5 cases, 0 FAIL |
-| Real MySQL 5.7.44 compatibility | 11/11 PASS | 11/11 PASS |
-| Real MariaDB 10.11.19 compatibility | 11/11 PASS | 11/11 PASS |
-| FastCGI persistent worker | 18 PASS, 0 FAIL | 18 PASS, 0 FAIL |
+| Multipart limits PHP test (CGI) | 7/7 cases, 0 FAIL | 7/7 cases, 0 FAIL |
+| Real MySQL 5.7.44 compatibility (r4 binary; carried forward) | 11/11 PASS | 11/11 PASS |
+| Real MariaDB 10.11.19 compatibility (r4 binary; carried forward) | 11/11 PASS | 11/11 PASS |
+| FastCGI persistent worker | 20 PASS, 0 FAIL | 20 PASS, 0 FAIL |
 
 The focused suite covers the patch groups above: SOAP security decoders, Phar TAR CVEs,
 mysqlnd packet/metadata/row/auth bounds, HTTP redirect credential handling, OpenSSL cipher
@@ -225,6 +227,8 @@ Skips are recorded as unavailable runtime paths, not as passes:
   Phar test and a symlink name-length test.
 - Remaining skips are tests marked by their SKIPIF as not applicable to Windows, requiring a
   live PostgreSQL server, or explicitly gated as slow tests.
+- PFTT/PFTT2 was not run: no compatible runner was available in this workspace for these legacy
+  binaries. This is recorded as SKIP/unavailable; the native PHPT and SAPI checks above still ran.
 
 ### Validation levels
 
@@ -233,10 +237,10 @@ The claims above separate as follows:
 | Level | Status |
 | --- | --- |
 | source implemented | yes (patch groups in this document) |
-| built (x86 VC11 TS + NTS) | yes (this revision) |
+| built (x86 VC11 TS + NTS) | yes (r4 runtime C build reused at r5; binary hashes reverified) |
 | tested: CGI one-process-per-request | yes (PHPT suite plus CGI multipart limits) |
-| tested: persistent FastCGI worker | yes (php-cgi.exe FastCGI mode, 18 checks per variant including controlled allocator-OOM) |
-| tested: real database | yes (MySQL 5.7.44, MariaDB 10.11.19; mysqli/mysqlnd query paths) |
+| tested: persistent FastCGI worker | yes (php-cgi.exe FastCGI mode, 20 checks per variant including controlled allocator-OOM) |
+| tested: real database | yes (r4 binaries; MySQL 5.7.44 and MariaDB 10.11.19 mysqli/mysqlnd paths, not rerun at r5) |
 | deployed (IIS / Apache / application) | no |
 
 ### Known limits
@@ -244,19 +248,21 @@ The claims above separate as follows:
 - Focused regression tests only; the full upstream PHP test suite was not run.
 - Windows x86 only; no x64, ARM, or non-Windows results are claimed.
 - No IIS/Apache deployment or application workflow testing was performed. FastCGI persistent
-  worker behaviour was tested through php-cgi.exe in FastCGI mode (18 checks per variant):
+  worker behaviour was tested through php-cgi.exe in FastCGI mode (20 checks per variant):
   worker PID persistence, sessions, multipart uploads, body-part limit enforcement (exact
   accepted parts and warning counts), file-upload-limit warning collapsing, upload-progress
   suppression with the ini verified enabled, oversized boundary rejection, and a controlled
   allocator-OOM run (fixed `memory_limit` and fixed input) that verifies the guarded
-  `_exit(1)` termination, the fatal error on stderr, that no PHP callback runs after the OOM,
-  and that a fresh worker continues the session.
+  `_exit(1)` termination and fatal error on stderr. A normal shutdown request writes a
+  callback marker; the OOM request writes a start marker but no shutdown callback marker.
+  A fresh worker then continues the session.
 - The procedural `mysqli_connect()` (nonpersistent handle) loopback run covers the metadata and
   rows suites; the packets and auth-long suites run through the `mysqli_init()` path. The
   loopback runner checks invalid cases with a warning from the operation under test; cases
   asserting a specific rejection point also require that exact warning text.
-- Real-server compatibility verified against MySQL 5.7.44 and MariaDB 10.11.19 (buffered,
-  unbuffered, prepared statements, binary protocol rows, NULL/special values, round-trip).
+- Real-server compatibility was verified at r4 against MySQL 5.7.44 and MariaDB 10.11.19
+  (buffered, unbuffered, prepared statements, binary protocol rows, NULL/special values,
+  round-trip). It was not rerun at r5 because the runtime binary hashes are unchanged.
   PHP 5.6 cannot connect to MySQL 8.x out of the box because MySQL 8 sends charset 255
   (utf8mb4_0900_ai_ci) in the handshake which is unknown to PHP 5.6; this is a pre-existing
   limitation not introduced by this patch. Configure MySQL 8 with a pre-8.0 default charset in
@@ -273,6 +279,7 @@ The claims above separate as follows:
 
 The adopted base1 tree carries its own earlier x86 TS / VC11 evidence (17/17 EOL CGI, 6/6
 persistent FastCGI, 11/11 extension checks, 9/9 session tests) recorded on 2026-10-22. Those
-results describe the base1 tree only. The r5 results above are the tests rerun against this
-revision. A test and build attestation binding the source fingerprint, binary SHA-256 values,
-commands and raw results is kept in the private project evidence.
+results describe the base1 tree only. The focused, changed-PHPT, CGI multipart and persistent
+FastCGI results above were rerun at r5 on the r4-built, hash-identical runtime binaries; the
+real-database results were carried forward from r4. A test and build attestation records source
+fingerprints, binary SHA-256 values, commands and raw results in the private project evidence.
