@@ -57,3 +57,6 @@ Desktop.ini
 
 # Private handoff notes, including notes under versioned source trees.
 HANDOFF*
+
+# Private version project plans, including notes under versioned source trees.
+PLAN_*

@@ -1,5 +1,5 @@
 --TEST--
-multipart body-part limits, ignored parts and file-upload warning collapsing (CGI)
+multipart body-part limits, ignored parts, file details and file-upload warning collapsing (CGI)
 --SKIPIF--
 <?php
 if (!getenv('TEST_PHP_CGI_EXECUTABLE')) {
@@ -55,9 +55,11 @@ function run_case($name, $script, $ini, $parts) {
     proc_close($handle);
 
     $post = $files = '?';
-    if (preg_match('/RESULT post=(\d+) files=(\d+)/', $out, $m)) {
+    $detail = '-';
+    if (preg_match('/RESULT post=(\d+) files=(\d+) detail=(.*)/', $out, $m)) {
         $post = $m[1];
         $files = $m[2];
+        $detail = trim($m[3]);
     }
     $limit = substr_count($out, 'Multipart body parts limit exceeded');
     $limit_value = '-';
@@ -66,7 +68,7 @@ function run_case($name, $script, $ini, $parts) {
     }
     $upload = substr_count($out, 'Maximum number of allowable file uploads has been exceeded');
     $garbled = substr_count($out, 'File Upload Mime headers garbled');
-    echo "$name: post=$post files=$files limit_warn=$limit limit_value=$limit_value upload_warn=$upload garbled=$garbled\n";
+    echo "$name: post=$post files=$files limit_warn=$limit limit_value=$limit_value upload_warn=$upload garbled=$garbled detail=$detail\n";
 }
 
 $named = function ($i) {
@@ -92,18 +94,32 @@ run_case('derived_default', $script,
 run_case('ignored_part_counted', $script, '-dmax_multipart_body_parts=2',
     array($named(0), $named(1), array('body' => 'ignored')));
 
-/* 4. File-upload limit warning collapses to one message for three excess files. */
+/* 4. Three total file parts against max_file_uploads=1: one accepted, two
+ *    excess, and a single warning instead of one warning per excess part. */
 run_case('file_limit_warn_once', $script, '-dmax_file_uploads=1 -dmax_multipart_body_parts=10',
     array($file(0), $file(1), $file(2)));
 
-/* 5. Ordinary fields and files stay unaffected. */
+/* 5. Accepted files keep name, size, content and error code 0; the excess
+ *    part is not registered at all. */
+run_case('file_details', $script, '-dmax_file_uploads=2 -dmax_multipart_body_parts=10',
+    array($file(0), $file(1), $file(2)));
+
+/* 6. An empty filename selection registers an empty error-coded entry and
+ *    leaves the other parts unaffected. */
+run_case('empty_selection', $script, '-dmax_file_uploads=2 -dmax_multipart_body_parts=10',
+    array(array('disposition' => 'form-data; name="empty"; filename=""', 'body' => ''),
+          $file(1), $named(2)));
+
+/* 7. Ordinary fields and files stay unaffected. */
 run_case('normal_fields_files', $script, '-dmax_multipart_body_parts=10',
     array($named(0), $file(1)));
 
 ?>
 --EXPECT--
-custom_limit: post=2 files=0 limit_warn=1 limit_value=2 upload_warn=0 garbled=0
-derived_default: post=3 files=0 limit_warn=1 limit_value=3 upload_warn=0 garbled=0
-ignored_part_counted: post=2 files=0 limit_warn=1 limit_value=2 upload_warn=0 garbled=0
-file_limit_warn_once: post=0 files=1 limit_warn=0 limit_value=- upload_warn=1 garbled=0
-normal_fields_files: post=1 files=1 limit_warn=0 limit_value=- upload_warn=0 garbled=0
+custom_limit: post=2 files=0 limit_warn=1 limit_value=2 upload_warn=0 garbled=0 detail=-
+derived_default: post=3 files=0 limit_warn=1 limit_value=3 upload_warn=0 garbled=0 detail=-
+ignored_part_counted: post=2 files=0 limit_warn=1 limit_value=2 upload_warn=0 garbled=0 detail=-
+file_limit_warn_once: post=0 files=1 limit_warn=0 limit_value=- upload_warn=1 garbled=0 detail=u0/t0.txt/5/0/data0
+file_details: post=0 files=2 limit_warn=0 limit_value=- upload_warn=1 garbled=0 detail=u0/t0.txt/5/0/data0,u1/t1.txt/5/0/data1
+empty_selection: post=1 files=2 limit_warn=0 limit_value=- upload_warn=0 garbled=0 detail=empty//0/4/-,u1/t1.txt/5/0/data1
+normal_fields_files: post=1 files=1 limit_warn=0 limit_value=- upload_warn=0 garbled=0 detail=u1/t1.txt/5/0/data1

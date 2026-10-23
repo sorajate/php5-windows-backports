@@ -98,8 +98,8 @@ function backport_mysqlnd_cases($group) {
         $cases['default-absent'] = array('mode' => 'metadata', 'payload' => $field, 'valid' => true, 'default' => '');
         /* The fixed metadata block carries a 12 (0x0c) length marker.  Any
          * other marker is a different packet shape and must be rejected. */
-        $cases['marker-0b'] = array('mode' => 'metadata', 'payload' => backport_mysqlnd_field(253, '', 1, 64, "\x0b"));
-        $cases['marker-0d'] = array('mode' => 'metadata', 'payload' => backport_mysqlnd_field(253, '', 1, 64, "\x0d"));
+        $cases['marker-0b'] = array('mode' => 'metadata', 'payload' => backport_mysqlnd_field(253, '', 1, 64, "\x0b"), 'warning' => 'wrong fixed metadata length marker');
+        $cases['marker-0d'] = array('mode' => 'metadata', 'payload' => backport_mysqlnd_field(253, '', 1, 64, "\x0d"), 'warning' => 'wrong fixed metadata length marker');
         $cases['marker-0c-control'] = array('mode' => 'metadata', 'payload' => backport_mysqlnd_field(253, '', 1, 64, "\x0c"), 'valid' => true, 'default' => '');
     } elseif ($group === 'rows') {
         foreach (array('row', 'binary') as $mode) {
@@ -124,11 +124,11 @@ function backport_mysqlnd_cases($group) {
         }
         /* Bytes after the last column value belong to no column and are
          * rejected before any field codec runs. */
-        $cases['row-trailing-junk'] = array('mode' => 'row', 'payload' => "\x01xJUNK");
-        $cases['row-null-trailing-junk'] = array('mode' => 'row', 'payload' => "\xfbJUNK");
-        $cases['binary-trailing-junk'] = array('mode' => 'binary', 'type' => 253, 'payload' => "\x00\x00\x01xJUNK");
-        $cases['binary-null-trailing-junk'] = array('mode' => 'binary', 'type' => 253, 'payload' => "\x00\x04JUNK");
-        $cases['binary-fixed-trailing-junk'] = array('mode' => 'binary', 'type' => 3, 'payload' => "\x00\x00" . pack('V', 42) . "JUNK");
+        $cases['row-trailing-junk'] = array('mode' => 'row', 'payload' => "\x01xJUNK", 'warning' => 'Invalid row data');
+        $cases['row-null-trailing-junk'] = array('mode' => 'row', 'payload' => "\xfbJUNK", 'warning' => 'Invalid row data');
+        $cases['binary-trailing-junk'] = array('mode' => 'binary', 'type' => 253, 'payload' => "\x00\x00\x01xJUNK", 'warning' => 'Invalid row data');
+        $cases['binary-null-trailing-junk'] = array('mode' => 'binary', 'type' => 253, 'payload' => "\x00\x04JUNK", 'warning' => 'Invalid row data');
+        $cases['binary-fixed-trailing-junk'] = array('mode' => 'binary', 'type' => 3, 'payload' => "\x00\x00" . pack('V', 42) . "JUNK", 'warning' => 'Invalid row data');
         foreach ($cases as $name => $case) {
             if ($case['mode'] === 'row') {
                 $case['unbuffered'] = true;
@@ -339,11 +339,16 @@ function backport_mysqlnd_run($group) {
         $status = proc_close($process);
         $valid = !empty($case['valid']);
         $boundary_warning = false;
+        /* Cases with a 'warning' expectation must see that exact rejection
+         * message; a generic malformed warning from another phase is not
+         * accepted as proof of this phase. */
+        $phase_warning = empty($case['warning']);
         foreach ($warnings as $warning) {
             if (strpos($warning, 'Malformed') !== false || strpos($warning, 'Premature end of data') !== false || strpos($warning, 'Wrong COM_STMT_PREPARE response size') !== false) $boundary_warning = true;
+            if (isset($case['warning']) && strpos($warning, $case['warning']) !== false) $phase_warning = true;
         }
-        if ((bool) $result !== $valid || (!$valid && !$boundary_warning) || $status !== 0 || $stderr !== '') {
-            echo 'FAIL ', $name, ': result=', (int) (bool) $result, ' peer=', $status, ' warnings=', implode(' | ', $warnings), ' stderr=', $stderr, "\n";
+        if ((bool) $result !== $valid || (!$valid && !$boundary_warning) || !$phase_warning || $status !== 0 || $stderr !== '') {
+            echo 'FAIL ', $name, ': result=', (int) (bool) $result, ' peer=', $status, ' expected_warning=', isset($case['warning']) ? $case['warning'] : '-', ' warnings=', implode(' | ', $warnings), ' stderr=', $stderr, "\n";
             $failures++;
         }
     }
