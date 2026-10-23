@@ -7,6 +7,22 @@ safe). They are separate configure/build variants and are tested separately.
 
 - Target: Windows x86 (32-bit) only. PHP 7+, x64, and other platforms are out of scope.
 
+## Windows x86 release packages
+
+The project release [`php-5.6.40-backports-r5`](https://github.com/sorajate/php5-windows-backports/releases/tag/php-5.6.40-backports-r5)
+provides these prebuilt VC11 packages from this source. The tag points to source commit
+`a53ae435ca323276977acf424c241f5ef6f8c4f8`. Each ZIP includes a per-file
+`RELEASE-MANIFEST.json`; the release also provides `SHA256SUMS.txt`.
+
+| Variant | Download | ZIP SHA-256 |
+| --- | --- | --- |
+| TS | [Windows x86 VC11 TS ZIP](https://github.com/sorajate/php5-windows-backports/releases/download/php-5.6.40-backports-r5/php-5.6.40-backports-r5-win-x86-vc11-ts.zip) | `2c53f9bcc9f87d1fc0aab7208db8b8392eef2edefb431dd60210595437d9ae41` |
+| NTS | [Windows x86 VC11 NTS ZIP](https://github.com/sorajate/php5-windows-backports/releases/download/php-5.6.40-backports-r5/php-5.6.40-backports-r5-win-x86-vc11-nts.zip) | `053283d0bfd4d51fdb3a0f9f5befde0281f09f602daff478699a996f56290488` |
+
+The release core DLLs contain redacted build-directory diagnostic/configure strings and a
+recalculated PE checksum. Their executable code sections match the previously validated build;
+the package ZIPs were tested separately as described below.
+
 ## Provenance
 
 Official upstream archive: [php-5.6.40.tar.xz](https://museum.php.net/php5/php-5.6.40.tar.xz)
@@ -191,8 +207,8 @@ GMP, Intl, OpenSSL and cURL controls passed.
 | mysqlnd loopback peer (pinned case counts) | packets 201/201, metadata 45/45, rows 184/184, auth-long 14/14, 0 FAIL | same, 0 FAIL |
 | mysqlnd loopback peer, procedural `mysqli_connect()` (nonpersistent handle) | metadata 45/45, rows 184/184, 0 FAIL | same, 0 FAIL |
 | Multipart limits PHP test (CGI) | 7/7 cases, 0 FAIL | 7/7 cases, 0 FAIL |
-| Real MySQL 5.7.44 compatibility (earlier run, same binaries) | 11/11 PASS | 11/11 PASS |
-| Real MariaDB 10.11.19 compatibility (earlier run, same binaries) | 11/11 PASS | 11/11 PASS |
+| Real MySQL 5.7.44 compatibility (earlier build, same executable code) | 11/11 PASS | 11/11 PASS |
+| Real MariaDB 10.11.19 compatibility (earlier build, same executable code) | 11/11 PASS | 11/11 PASS |
 | FastCGI persistent worker | 20 PASS, 0 FAIL | 20 PASS, 0 FAIL |
 
 The focused suite covers the patch groups above: SOAP security decoders, Phar TAR CVEs,
@@ -230,7 +246,7 @@ The claims above separate as follows:
 | built (x86 VC11 TS + NTS) | yes (binary hashes reverified) |
 | tested: CGI one-process-per-request | yes (PHPT suite plus CGI multipart limits) |
 | tested: persistent FastCGI worker | yes (php-cgi.exe FastCGI mode, 20 checks per variant including controlled allocator-OOM) |
-| tested: real database | yes (earlier runs on the same binaries: MySQL 5.7.44 and MariaDB 10.11.19 mysqli/mysqlnd paths) |
+| tested: real database | yes (earlier build with the same executable code: MySQL 5.7.44 and MariaDB 10.11.19 mysqli/mysqlnd paths; release ZIPs not rerun) |
 | deployed (IIS / Apache / application) | no |
 
 ### Known limits
@@ -252,8 +268,9 @@ The claims above separate as follows:
   asserting a specific rejection point also require that exact warning text.
 - Real-server compatibility was verified against MySQL 5.7.44 and MariaDB 10.11.19
   (buffered, unbuffered, prepared statements, binary protocol rows, NULL/special values,
-  round-trip). It was not rerun after test/documentation edits; the runtime binary hashes
-  are unchanged.
+  round-trip). It was not rerun from the release ZIPs. Packaging changed only two
+  diagnostic/configure strings in the core DLLs and recalculated their PE checksums;
+  the executable code sections are unchanged, but the whole-file core DLL hashes differ.
   PHP 5.6 cannot connect to MySQL 8.x out of the box because MySQL 8 sends charset 255
   (utf8mb4_0900_ai_ci) in the handshake which is unknown to PHP 5.6; this is a pre-existing
   limitation not introduced by this patch. Configure MySQL 8 with a pre-8.0 default charset in
