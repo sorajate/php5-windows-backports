@@ -182,6 +182,43 @@ The only variant difference is the thread-safety switch:
 Then run `nmake` (VC11, x86 tools). Keep both variants on separate output directories; they
 share this one source tree but are not interchangeable binaries.
 
+## Prepared Windows x86 runtime ZIPs
+
+The following community-built archives are staged for later GitHub Release attachment and have
+**not** been published. They are Git-ignored under `lastest/5.6.40/`; the source repository
+does not contain the ZIPs. `SHA256SUMS.txt` is staged beside them.
+
+| Variant | Archive name | Size (bytes) | SHA-256 |
+| --- | --- | ---: | --- |
+| TS | `php-5.6.40-backports-r5-win-x86-vc11-ts.zip` | 20,491,040 | `2c53f9bcc9f87d1fc0aab7208db8b8392eef2edefb431dd60210595437d9ae41` |
+| NTS | `php-5.6.40-backports-r5-win-x86-vc11-nts.zip` | 20,403,779 | `053283d0bfd4d51fdb3a0f9f5befde0281f09f602daff478699a996f56290488` |
+
+Each ZIP has 49 entries: `php.exe`, `php-cgi.exe`, the variant's core DLL, 27 built
+extension DLLs in `ext/`, nine required third-party DLLs, the app-local x86 VC11
+`msvcr110.dll` and `msvcp110.dll`, upstream license/install/configuration samples,
+`README-BACKPORT.txt` and `RELEASE-MANIFEST.json`. The nine dependency DLLs are byte-identical
+to those in the official PHP 5.6.40 VC11 x86 ZIP used as a packaging reference. The bundled
+VC11 DLLs are unmodified files from Microsoft's Visual C++ 2012 Update 4 x86
+redistributable package (DLL file version 11.00.51106.1);
+[Microsoft's redistribution list](https://learn.microsoft.com/en-us/visualstudio/releases/2012/2012-redistribution-vs)
+describes the applicable license condition for these files.
+
+Extract one ZIP into its own directory and copy that directory to a compatible Windows host.
+The included runtime and dependency DLLs need no separate installer. There is no active
+`php.ini`: copy either sample to `php.ini`, set `extension_dir = "ext"`, and enable
+only the extensions the application needs. Use `php-cgi.exe` for FastCGI. The NTS ZIP is
+the intended FastCGI variant; this build does not include an Apache handler or `php-win.exe`.
+Do not mix TS and NTS DLLs. App-local CRT copies require a new archive when the CRT is updated.
+
+The runtime was compiled at r4 and reused at r5 because the compiled source did not change.
+For release packaging, two machine-specific build-directory strings in each core DLL's
+diagnostic/configure metadata were replaced with relative text of the same length, and the
+PE checksum was updated. The release core DLL therefore has a different SHA-256 from the
+original r4/r5 build attestation. A byte comparison found changes only in those two
+`.rdata` strings and the PE checksum field; executable code sections were unchanged.
+The archive's `RELEASE-MANIFEST.json` gives the SHA-256 of every shipped file. See the
+validation results and deployment limits below.
+
 ## Validation results (r5, 2026-10-23)
 
 The Windows x86 TS and NTS runtime binaries were built from the r4 C source with the toolchain
@@ -204,6 +241,24 @@ GMP, Intl, OpenSSL and cURL controls passed.
 | Real MySQL 5.7.44 compatibility (r4 binary; carried forward) | 11/11 PASS | 11/11 PASS |
 | Real MariaDB 10.11.19 compatibility (r4 binary; carried forward) | 11/11 PASS | 11/11 PASS |
 | FastCGI persistent worker | 20 PASS, 0 FAIL | 20 PASS, 0 FAIL |
+
+### Validation of the prepared ZIPs
+
+The archives above were tested after the metadata redaction and app-local CRT packaging, on
+Windows 11 Pro 10.0.26300 (x64 host running x86 PHP). Each archive passed its ZIP CRC and
+per-file manifest hashes. After extraction, `php.exe` and `php-cgi.exe` started with a
+`PATH` limited to the extracted directory and Windows system directories; all 27 shared
+extensions, including Zend OPcache, loaded. Runtime checks returned PHP 5.6.40,
+`PHP_INT_SIZE=4`, and the expected `PHP_ZTS` value. Process module inspection confirmed
+that VC11 CRT and ICU DLLs were loaded from the extracted archive itself for both variants.
+
+The native changed-PHPT set ran against the extracted ZIP binaries with 83 PASS, 15 SKIP,
+0 FAIL of 98 for **each** variant; the focused 32 tests are included in that set. CGI
+multipart limits passed 7/7 cases. A separate localhost persistent FastCGI run from each
+extracted ZIP passed 20/20 checks, including the shutdown-callback positive control,
+controlled allocator OOM, worker replacement and session continuation. MySQL 5.7.44 and
+MariaDB 10.11.19 results in the table remain the earlier r4 runs on the hash-matching
+pre-package runtime; those real-server checks were not rerun from the ZIPs.
 
 The focused suite covers the patch groups above: SOAP security decoders, Phar TAR CVEs,
 mysqlnd packet/metadata/row/auth bounds, HTTP redirect credential handling, OpenSSL cipher
