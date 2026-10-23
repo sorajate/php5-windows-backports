@@ -9,11 +9,11 @@ src/
 
 | Source | Included work | Validation |
 | --- | --- | --- |
-| [PHP 5.6.40](src/5.6.40/readme.md) | Base1 mitigation for CVE-2026-109618 and CVE-2026-109619, security backports (Phar TAR CVE-2026-6103/7260, SOAP GHSA-hmxp-6pc4-f3vv/GHSA-m33r-qmcv-p97q, Windows device paths CVE-2026-17545, mysqlnd, HTTP, TLS, filters, OpenSSL, image, URL, review hardening, multipart limit warning collapsing) | Windows x86 TS/NTS runtime binaries built at r4 and reused at r5 with matching hashes; r5 PHPT/FastCGI checks rerun, real-DB results carried forward from r4 (see the version readme for results and limits) |
+| [PHP 5.6.40](src/5.6.40/readme.md) | CVE-2026-109618/109619 mitigation and backports for Phar, SOAP, Windows paths, mysqlnd, HTTP, TLS and multipart parsing | Windows x86 VC11 TS/NTS: 83 PASS, 15 SKIP, 0 FAIL in the changed PHPT set per variant; persistent FastCGI 20/20. See the version readme for database results and limits. |
 
 ## Microsoft runtime for the Windows x86 build
 
-PHP 5.6.40 r5 TS and NTS use VC11. The matching Microsoft runtime package is
+PHP 5.6.40 Windows x86 TS and NTS builds use VC11. The matching Microsoft runtime package is
 [Visual C++ 2012 Redistributable Update 4 **x86**, version 11.0.61030.0](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist#visual-studio-2012-vc-110-update-4-no-longer-supported).
 Its relevant DLLs are `msvcr110.dll` and `msvcp110.dll` (needed by Intl/ICU).
 See the [version readme](src/5.6.40/readme.md#building) for the build profile.
